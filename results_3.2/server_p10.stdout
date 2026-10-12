@@ -1,0 +1,62 @@
+INFO:     Started server process [552245]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:46476 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54414 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58374 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58384 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58392 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58394 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58398 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58402 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58416 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58430 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58442 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58458 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58474 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58490 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58492 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58496 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58498 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58502 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58514 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58518 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47584 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47588 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47590 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47606 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47612 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47618 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47630 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47634 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47650 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47654 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47668 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47682 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47688 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47694 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47700 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47708 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47712 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47718 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47722 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47724 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47730 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47744 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47754 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47756 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47768 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47772 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47776 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55426 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55432 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55442 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55452 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55456 - "POST /v1/completions HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+/pscratch/sd/n/nicoleq/sysml-hw2/lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '
+/pscratch/sd/n/nicoleq/sysml-hw2/lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 1 leaked shared_memory objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '
