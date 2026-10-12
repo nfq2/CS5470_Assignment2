@@ -283,8 +283,9 @@ def calculate_metrics(
             completed += 1
             latencies.append(outputs[i].latency * 1000)
             sts.append(outputs[i].start_time)
-            if output_len > 1:
-                print('TTFT: {} TPOT: {} INPUT: {} OUTPUT: {} LATENCY: {} START: {}'.format(ttfts[-1], tpots[-1], input_requests[i][1], output_len, latencies[-1], sts[-1]))
+            # TTFT applies even when there is no second token to define TPOT.
+            request_tpot = tpots[-1] if output_len > 1 else float('nan')
+            print('TTFT: {} TPOT: {} INPUT: {} OUTPUT: {} LATENCY: {} START: {}'.format(ttfts[-1], request_tpot, input_requests[i][1], output_len, latencies[-1], sts[-1]))
         else:
             actual_output_lens.append(0)
 
