@@ -961,18 +961,23 @@ class Scheduler:
     def _get_priority(self,
                       seq_group: SequenceGroup) -> Tuple[Optional[int], float]:
         """Get the priority of the sequence group.
-        Highest preference to user-defined priority, followed by arrival time.
+        CFS prefers fewer generated tokens, breaking ties by arrival time.
+        Keep the original priority policy when CFS is disabled.
         Args:
             seq_group: The sequence group input.
         Returns:
             The priority of the sequence group.
         """
         ### UPDATE THIS ###
+        if CFS_INTERVAL > 0:
+            return (sum(seq.get_output_len() for seq in seq_group.get_seqs()),
+                    seq_group.arrival_time)
         return seq_group.priority, seq_group.arrival_time
 
     def _schedule_priority_preemption(
         self,
         budget: SchedulingBudget,
+        cfs_blocks_to_swap_out: Optional[List[Tuple[int, int]]] = None,
     ) -> int:
         """Sorts waiting and running queue. Also, force preempt requests
         from the running queue if their priority is lower.
@@ -983,6 +988,60 @@ class Scheduler:
         Returns:
             A count of priority-based preemptions.
         """
+
+        # CFS callers supply the swap list that will reach SchedulerOutputs.
+        # Leave the original default/priority-policy path below unchanged.
+        if cfs_blocks_to_swap_out is not None:
+            self.waiting = deque(sorted(self.waiting, key=self._get_priority))
+            self.running = deque(sorted(self.running, key=self._get_priority))
+            self.swapped = deque(sorted(self.swapped, key=self._get_priority))
+            candidates = []
+            if self.waiting:
+                candidates.append((self.waiting[0], SequenceStatus.WAITING))
+            if self.swapped:
+                candidates.append((self.swapped[0], SequenceStatus.SWAPPED))
+            if not candidates:
+                return 0
+            candidate, status = min(
+                candidates, key=lambda item: self._get_priority(item[0]))
+            num_tokens, num_cached = self._get_num_new_uncached_and_cached_tokens(
+                candidate, status, False, budget)
+            # Eviction cannot fix an exhausted token budget or an invalid prompt.
+            if num_tokens == 0 or num_tokens > budget.remaining_token_budget():
+                return 0
+            if (status == SequenceStatus.WAITING
+                    and num_tokens + num_cached > self._get_prompt_limit(candidate)):
+                return 0
+
+            num_seqs = candidate.get_max_num_running_seqs()
+            preempted = 0
+            while self.running:
+                if status == SequenceStatus.WAITING:
+                    allocation = self.block_manager.can_allocate(candidate)
+                else:
+                    allocation = self.block_manager.can_swap_in(
+                        candidate, self._get_num_lookahead_slots(
+                            candidate.is_prefill(), False))
+                if allocation == AllocStatus.NEVER:
+                    break
+                if (allocation == AllocStatus.OK and budget.can_schedule(
+                        num_new_tokens=num_tokens, num_new_seqs=num_seqs)):
+                    break
+                victim = self.running[-1]
+                if self._get_priority(victim) <= self._get_priority(candidate):
+                    break
+                if not self.block_manager.can_swap_out(victim):
+                    break
+                self.running.pop()
+                budget.subtract_num_seqs(victim.request_id,
+                                         victim.get_max_num_running_seqs())
+                # Preserve computed KV blocks; do not return to WAITING/prefill.
+                self._preempt_by_swap(victim, cfs_blocks_to_swap_out)
+                self.swapped.append(victim)
+                self.num_cumulative_preemption += 1
+                preempted += 1
+            self.swapped = deque(sorted(self.swapped, key=self._get_priority))
+            return preempted
 
         waiting_queue = self.waiting
 
@@ -1241,15 +1300,89 @@ class Scheduler:
     num_iters = 0
 
     def _schedule_cfs(self) -> SchedulerOutputs:
-        """Schedule queued requests.
-
-        The current policy is designed to optimize the throughput. First,
-        it batches as many prefill requests as possible. And it schedules
-        decodes. If there's a pressure on GPU memory, decode requests can
-        be swapped or preempted.
-        """
+        """Admit less-served requests by swapping out lower-priority runners."""
         ### UPDATE THIS ###
-        return None
+        budget = SchedulingBudget(
+            token_budget=self.scheduler_config.max_num_batched_tokens,
+            max_num_seqs=self.scheduler_config.max_num_seqs)
+        for group in self.running:
+            budget.add_num_seqs(group.request_id,
+                                group.get_max_num_running_seqs())
+        self.waiting = deque(sorted(self.waiting, key=self._get_priority))
+        self.running = deque(sorted(self.running, key=self._get_priority))
+        self.swapped = deque(sorted(self.swapped, key=self._get_priority))
+
+        blocks_to_swap_out: List[Tuple[int, int]] = []
+        preempted = 0
+        prefills = SchedulerPrefillOutputs.create_empty()
+        running = SchedulerRunningOutputs.create_empty()
+        swapped = SchedulerSwappedInOutputs.create_empty()
+        curr_loras = None
+
+        # Unlike FCFS, a swapped queue must not prevent new (zero-output-token)
+        # prompts from getting their first turn. Repeat to admit a full batch,
+        # reserving budget and blocks for every prefill already selected.
+        while self.waiting:
+            if (self.swapped and self._get_priority(self.swapped[0])
+                    < self._get_priority(self.waiting[0])):
+                break
+            preempted += self._schedule_priority_preemption(
+                budget, blocks_to_swap_out)
+            if self.lora_enabled:
+                curr_loras = {
+                    g.lora_int_id for g in self.running if g.lora_int_id > 0
+                } | {
+                    s.seq_group.lora_int_id for s in prefills.seq_groups
+                    if s.seq_group.lora_int_id > 0
+                }
+            batch = self._schedule_prefills(budget, curr_loras,
+                                            enable_chunking=False)
+            prefills.seq_groups.extend(batch.seq_groups)
+            prefills.ignored_seq_groups.extend(batch.ignored_seq_groups)
+            if not batch.seq_groups:
+                break
+
+        # Preserve v0's separate prefill/decode batches. If a swap-out is
+        # necessary for a paused request, emit it now and let the next step
+        # swap that request in: SchedulerOutputs forbids both directions.
+        if not prefills.seq_groups:
+            preempted += self._schedule_priority_preemption(
+                budget, blocks_to_swap_out)
+            if self.lora_enabled:
+                curr_loras = {g.lora_int_id for g in self.running
+                              if g.lora_int_id > 0}
+            running = self._schedule_running(budget, curr_loras,
+                                             enable_chunking=False)
+            if (not blocks_to_swap_out and not running.preempted
+                    and not running.swapped_out):
+                swapped = self._schedule_swapped(budget, curr_loras)
+
+        self.waiting.extendleft(running.preempted)
+        self.running.extend(s.seq_group for s in prefills.seq_groups)
+        self.running.extend(running.decode_seq_groups_list)
+        self.running.extend(s.seq_group for s in swapped.decode_seq_groups)
+        self.swapped.extend(running.swapped_out)
+        self.swapped = deque(sorted(self.swapped, key=self._get_priority))
+        blocks_to_swap_out.extend(running.blocks_to_swap_out)
+        preempted += len(running.preempted) + len(running.swapped_out)
+
+        assert budget.num_batched_tokens <= budget.token_budget
+        assert budget.num_curr_seqs <= budget.max_num_seqs
+        assert not running.prefill_seq_groups
+        assert not swapped.prefill_seq_groups
+        return SchedulerOutputs(
+            scheduled_seq_groups=(prefills.seq_groups + running.decode_seq_groups
+                                  + swapped.decode_seq_groups),
+            num_prefill_groups=len(prefills.seq_groups),
+            num_batched_tokens=budget.num_batched_tokens + budget.num_cached_tokens,
+            blocks_to_swap_in=swapped.blocks_to_swap_in,
+            blocks_to_swap_out=blocks_to_swap_out,
+            blocks_to_copy=running.blocks_to_copy + swapped.blocks_to_copy,
+            ignored_seq_groups=(prefills.ignored_seq_groups
+                                + swapped.infeasible_seq_groups),
+            num_lookahead_slots=running.num_lookahead_slots,
+            running_queue_size=len(self.running),
+            preempted=preempted)
 
     def _schedule_default(self) -> SchedulerOutputs:
         """Schedule queued requests.
@@ -1515,6 +1648,10 @@ class Scheduler:
             return self._schedule_chunked_prefill()
         else:
             ### UPDATE THIS ###
+            if CFS_INTERVAL > 0:
+                self.num_iters += 1
+                if self.num_iters % CFS_INTERVAL == 0:
+                    return self._schedule_cfs()
             return self._schedule_default()
         
     def _can_append_slots(self, seq_group: SequenceGroup,
